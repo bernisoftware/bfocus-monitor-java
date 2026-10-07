@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class BfocusMonitor {
     /** Versão deste pacote (a mesma do pom.xml; um teste trava). */
-    public static final String VERSION = "0.1.0";
+    public static final String VERSION = "0.1.1";
 
     /** Nome no campo {@code sdk.name} e no header {@code X-bFocus-Client}. */
     public static final String SDK_NAME = "bfocus-monitor-java";
