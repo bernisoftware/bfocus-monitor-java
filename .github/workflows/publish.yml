@@ -1,0 +1,117 @@
+# Publica br.com.bernisoftware:bfocus-monitor no Maven Central ao dar push de uma tag vX.Y.Z no espelho
+# público bernisoftware/bfocus-monitor-java (o scripts/release-monitor.sh do monorepo espelha monitor/java
+# e cria a tag).
+#
+# PUBLICAR EXIGE SUÍTE VERDE — no piso (Java 11) e no teto (Java 21) suportados, contra a árvore E contra o
+# jar que vai subir. Os testes que comparam com o monorepo (monitor/release.json e
+# monitor/conformance/cases.json) pulam sozinhos aqui.
+#
+# Secrets (Settings → Secrets and variables → Actions), ambiente `maven-central` — os MESMOS nomes do
+# bernisoftware/bfocus-java e do bzapper-java (um único conjunto, secret da org):
+#   MAVEN_CENTRAL_USERNAME / MAVEN_CENTRAL_PASSWORD — token de usuário do Sonatype Central Portal
+#       (central.sonatype.com → View Account → Generate User Token), namespace br.com.bernisoftware verificado
+#   MAVEN_GPG_PRIVATE_KEY / MAVEN_GPG_PASSPHRASE — chave que assina os artefatos (a pública num keyserver)
+name: publish
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  # Piso e teto: o pacote compila com --release 11 e roda em qualquer JDK ≥ 11.
+  test:
+    name: test (Java ${{ matrix.java }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        java: ['11', '21']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+      # Conformidade (cases.json da cópia em src/test/resources) + unitários + filtro Servlet + versão,
+      # contra target/classes.
+      - run: mvn -B verify
+
+  # A MESMA suíte roda de novo contra o JAR empacotado — pega erro de empacotamento. O pom não tem um
+  # perfil para isso, então o failsafe é chamado direto: target/classes é APAGADO depois do package e o
+  # jar entra no classpath dos testes; se algo faltar no jar, a suíte quebra com NoClassDefFoundError.
+  verify-jar:
+    name: verify-jar (Java ${{ matrix.java }})
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        java: ['11', '21']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+      - name: Empacota (sem rodar a suíte; as classes de teste são compiladas)
+        run: mvn -B -DskipTests package
+      - name: Suíte contra o jar
+        run: |
+          jar="$(ls target/bfocus-monitor-*.jar | grep -v -e sources -e javadoc)"
+          echo "jar: $jar"
+          unzip -l "$jar" | grep -q 'br/com/bernisoftware/bfocus/monitor/BfocusMonitor.class' \
+            || { echo "::error::BfocusMonitor.class fora do jar"; exit 1; }
+          rm -rf target/classes
+          mvn -B \
+            org.apache.maven.plugins:maven-failsafe-plugin:3.2.5:integration-test \
+            org.apache.maven.plugins:maven-failsafe-plugin:3.2.5:verify \
+            -Dit.test='*Test' \
+            -Dmaven.test.additionalClasspath="$PWD/$jar" \
+            -Dbfocus.projectDir="$PWD" \
+            -DtrimStackTrace=false
+          ls target/failsafe-reports/TEST-*.xml >/dev/null || { echo "::error::failsafe não rodou nenhum teste"; exit 1; }
+
+  publish:
+    needs: verify-jar # sem suíte verde (árvore + jar, Java 11 e 21) não sobe nada
+    runs-on: ubuntu-latest
+    environment:
+      name: maven-central
+      url: https://central.sonatype.com/artifact/br.com.bernisoftware/bfocus-monitor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21' # compila com --release 11 (pom.xml): o bytecode roda no Java 11
+          cache: maven
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      # A tag é a versão publicada. O bump e a tag são passos separados no release-monitor.sh: se
+      # divergirem, o Central receberia um número diferente do que a tag promete (e o X-bFocus-Client
+      # / sdk.version dos eventos mentiria).
+      - name: A tag bate com o pom.xml e com BfocusMonitor.VERSION
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pom="$(mvn -B -q help:evaluate -Dexpression=project.version -DforceStdout)"
+          code="$(sed -n 's/.*public static final String VERSION = "\([^"]*\)".*/\1/p' src/main/java/br/com/bernisoftware/bfocus/monitor/BfocusMonitor.java)"
+          [ "$tag" = "$pom" ] || { echo "::error::tag $GITHUB_REF_NAME != pom.xml $pom"; exit 1; }
+          [ "$pom" = "$code" ] || { echo "::error::pom.xml $pom != BfocusMonitor.VERSION $code"; exit 1; }
+          echo "versão $pom confirmada"
+
+      # release = sources + javadoc + assinatura GPG + upload ao Central (central-publishing-maven-plugin,
+      # autoPublish). A suíte roda de novo antes do deploy (fase test).
+      - name: Publica no Maven Central
+        run: mvn -B -P release deploy
+        env:
+          MAVEN_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}

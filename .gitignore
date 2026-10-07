@@ -1,0 +1,15 @@
+# Build do Maven
+target/
+dependency-reduced-pom.xml
+*.class
+# Exemplo compilado à mão
+examples/out/
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath

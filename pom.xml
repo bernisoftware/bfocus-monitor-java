@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>br.com.bernisoftware</groupId>
+  <artifactId>bfocus-monitor</artifactId>
+  <!-- A versão existe aqui E em BfocusMonitor.VERSION; o VersionTest trava que sejam iguais
+       (e monitor/release.json é a versão de todos os pacotes de monitoramento). -->
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <name>bFocus Monitor (Java)</name>
+  <description>Monitoramento de erros do bFocus para Java: captura os erros não tratados do sistema (threads, Servlet/Spring) e manda para o bFocus, onde o mesmo erro é agrupado entre todos os clientes e vira demanda para a equipe. Sem dependências de runtime.</description>
+  <url>https://github.com/bernisoftware/bfocus-monitor-java</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <organization>
+    <name>Berni Software</name>
+    <url>https://bfocus.com.br</url>
+  </organization>
+
+  <developers>
+    <developer>
+      <name>Berni Software</name>
+      <email>tecnologia@bernisoftware.com.br</email>
+      <organization>Berni Software</organization>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:https://github.com/bernisoftware/bfocus-monitor-java.git</connection>
+    <developerConnection>scm:git:git@github.com:bernisoftware/bfocus-monitor-java.git</developerConnection>
+    <url>https://github.com/bernisoftware/bfocus-monitor-java</url>
+  </scm>
+
+  <properties>
+    <!-- Piso: Java 11 (java.net.http.HttpClient). -->
+    <maven.compiler.release>11</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <junit.version>5.10.2</junit.version>
+    <surefire.version>3.2.5</surefire.version>
+  </properties>
+
+  <!-- ZERO dependências de runtime: JSON escrito à mão, java.net.http e javax.crypto do JDK.
+       A API de Servlet (jakarta, Spring Boot 3 / Tomcat 10+) é provided + optional: só o BfocusMonitorFilter
+       a usa, e quem registra o filtro já tem o container. -->
+  <dependencies>
+    <dependency>
+      <groupId>jakarta.servlet</groupId>
+      <artifactId>jakarta.servlet-api</artifactId>
+      <version>5.0.0</version>
+      <scope>provided</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+          <compilerArgs>
+            <arg>-Xlint:all</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${surefire.version}</version>
+        <configuration>
+          <trimStackTrace>false</trimStackTrace>
+          <systemPropertyVariables>
+            <!-- VersionTest lê o pom.xml e o BfocusMonitor.java daqui. -->
+            <bfocus.projectDir>${project.basedir}</bfocus.projectDir>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.1</version>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <Automatic-Module-Name>br.com.bernisoftware.bfocus.monitor</Automatic-Module-Name>
+              <Implementation-Title>${project.name}</Implementation-Title>
+              <Implementation-Version>${project.version}</Implementation-Version>
+              <Implementation-Vendor>Berni Software</Implementation-Vendor>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!-- Publicação no Maven Central (Sonatype Central Portal): sources + javadoc + assinatura GPG.
+         Uso no CI: mvn -P release deploy. Local, sem GPG: mvn -P release -DskipTests -Dgpg.skip package -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.3.1</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>3.7.0</version>
+            <configuration>
+              <!-- Getters documentados só com @return (estilo do projeto): o grupo "missing" do doclint acusaria
+                   "no main description" em todos. HTML, referências e sintaxe continuam checados. -->
+              <doclint>all,-missing</doclint>
+              <doctitle>bFocus Monitor (Java) ${project.version}</doctitle>
+              <windowtitle>bFocus Monitor (Java) ${project.version}</windowtitle>
+            </configuration>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.4</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>0.6.0</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>true</autoPublish>
+              <!-- 'uploaded' (não 'published'): o polling de status do plugin 0.6.0 quebra ao ler o campo
+                   "warnings" do Central (visto no bZapper). Com autoPublish=true publica assim mesmo. -->
+              <waitUntil>uploaded</waitUntil>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>
