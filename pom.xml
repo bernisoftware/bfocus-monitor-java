@@ -8,7 +8,7 @@
   <artifactId>bfocus-monitor</artifactId>
   <!-- A versão existe aqui E em BfocusMonitor.VERSION; o VersionTest trava que sejam iguais
        (e monitor/release.json é a versão de todos os pacotes de monitoramento). -->
-  <version>0.1.1</version>
+  <version>0.1.2</version>
   <packaging>jar</packaging>
 
   <name>bFocus Monitor (Java)</name>

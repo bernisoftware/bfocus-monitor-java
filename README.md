@@ -10,12 +10,12 @@ de runtime (`java.net.http`, `javax.crypto` e JSON escrito à mão).
 <dependency>
   <groupId>br.com.bernisoftware</groupId>
   <artifactId>bfocus-monitor</artifactId>
-  <version>0.1.1</version>
+  <version>0.1.2</version>
 </dependency>
 ```
 
 ```kotlin
-implementation("br.com.bernisoftware:bfocus-monitor:0.1.1") // Gradle
+implementation("br.com.bernisoftware:bfocus-monitor:0.1.2") // Gradle
 ```
 
 ## Ligar (uma linha)
