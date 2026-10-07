@@ -130,8 +130,8 @@ class UnitTest {
             assertTrue(BfocusMonitor.flush(Duration.ofSeconds(5)));
             assertEquals(1, server.requests().size());
             FakeServer.Received req = server.requests().get(0);
-            assertEquals("bfocus-monitor-java/0.1.0", req.header("X-bFocus-Client"));
-            assertEquals("bfocus-monitor-java/0.1.0", req.header("User-Agent"));
+            assertEquals("bfocus-monitor-java/" + BfocusMonitor.VERSION, req.header("X-bFocus-Client"));
+            assertEquals("bfocus-monitor-java/" + BfocusMonitor.VERSION, req.header("User-Agent"));
             assertEquals("application/json", req.header("Content-Type"));
             assertEquals("/api/v1/monitor/events", req.path); // barra final do baseUrl não duplica
             Map<String, Object> ev = obj(req.events().get(0));
